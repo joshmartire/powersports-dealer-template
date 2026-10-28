@@ -1,0 +1,10 @@
+# Demo deployments stay out of search results. Client sites on their own domain are not matched here.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex, nofollow
+https://powersportsdemo.getrankboss.com/*
+  X-Robots-Tag: noindex, nofollow
+
+/atv-model.json
+  Cache-Control: public, max-age=604800
+/vendor/*
+  Cache-Control: public, max-age=2592000, immutable
