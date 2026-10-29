@@ -182,7 +182,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .type-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;align-items:end}
 .type-item{display:grid;justify-items:center;gap:10px;text-decoration:none;color:var(--fg)}
 .type-item svg{width:100%;max-width:310px;height:auto;transition:transform .3s}
-.type-item:hover svg{transform:translateY(-4px) scale(1.03)}
+.type-item img{width:100%;max-width:300px;aspect-ratio:5/3;object-fit:contain;filter:drop-shadow(0 12px 10px rgba(0,0,0,.18));transition:transform .3s}
+.type-item:hover :is(svg,img){transform:translateY(-4px) scale(1.03)}
 .go-pill{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line-2);border-radius:999px;padding:8px 15px;font-family:var(--f-label);font-weight:700;
   text-transform:uppercase;letter-spacing:.08em;font-size:.78rem;color:var(--fg);text-decoration:none;background:var(--panel);transition:background .15s,border-color .15s,color .15s}
 .type-item:hover .go-pill,a.go-pill:hover{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
@@ -221,9 +222,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .about-media{position:relative;aspect-ratio:4/3;max-width:100%;background:radial-gradient(ellipse at 70% 90%,rgba(255,140,60,.35),transparent 60%),linear-gradient(160deg,#22272d,#111316);overflow:hidden;border-radius:4px}
 .about-media::before{content:"";position:absolute;left:-10%;right:-10%;bottom:0;height:24%;background:#0b0c0d}
 .about-media::after{content:"";position:absolute;top:0;bottom:0;left:56%;width:16%;background:var(--accent);transform:skewX(-14deg);opacity:.85}
-.about-media svg{position:absolute;z-index:1}
-.about-media svg:first-child{left:-4%;bottom:6%;width:66%}
-.about-media svg:last-child{right:-6%;bottom:2%;width:58%}
+.about-media img{position:absolute;z-index:1;height:auto;filter:drop-shadow(0 18px 16px rgba(0,0,0,.45))}
+.about-media .am-a{left:-3%;bottom:7%;width:70%}
+.about-media .am-b{right:-2%;bottom:3%;width:50%;z-index:2}
 .about h2{font-size:clamp(2rem,4vw,3.1rem);margin:8px 0 16px}
 .about p{color:var(--fg-2);max-width:60ch;margin:0 0 14px}
 .about .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
@@ -259,6 +260,8 @@ section.block{padding-block:72px}
 .media{position:relative;aspect-ratio:16/10;max-width:100%;overflow:hidden;background:radial-gradient(ellipse at 50% 88%,#d9dde2 0%,#f1f3f5 62%,#f7f8f9 100%)}
 .media svg{position:absolute;inset:8% 6% 2%;width:88%;height:90%}
 .media img{width:100%;height:100%;object-fit:cover}
+.media img.cut,.gallery .main img.cut{object-fit:contain;padding:5% 6% 3%;filter:drop-shadow(0 14px 12px rgba(0,0,0,.22))}
+.thumbs img.cut,.inv-t .thumb img.cut,.ph img.cut{object-fit:contain;padding:4%}
 .badges{position:absolute;left:10px;top:10px;display:flex;gap:6px;flex-wrap:wrap;z-index:2}
 .badge{font-family:var(--f-label);font-weight:700;text-transform:uppercase;letter-spacing:.1em;font-size:.68rem;padding:4px 8px;background:var(--bg);border:1px solid var(--line-2);color:var(--fg)}
 .badge.new{background:var(--fg);color:var(--bg);border-color:var(--fg)}
@@ -562,7 +565,7 @@ table.inv-t{width:100%;border-collapse:collapse;min-width:980px}
    method becomes a fetch() to a Cloudflare Worker backed by
    D1 (inventory, leads, settings) and R2 (photos).
    ============================================================ */
-const KEY = 'backforty_demo_v1';
+const KEY = 'backforty_demo_v2';
 const CATS = [
   {id:'atvs', name:'ATVs', one:'ATV', art:'atv'},
   {id:'sxs', name:'Side-by-Sides', one:'Side-by-Side', art:'sxs'},
@@ -577,6 +580,8 @@ const DAY = 86400000;
 const HERO_IMG = '';
 // 3D hero model (published next to the page). Credit required by its CC BY 4.0 licence; see footer.
 const MODEL_URL = 'atv-model.json';
+// Real product cutouts (transparent WebP). Categories without one keep the illustration.
+const PHOTOS = {atvs:'img/atv.webp', sxs:'img/sxs.webp', tractors:'img/tractor.webp', trailers:'img/trailer.webp'};
 const THREE_BASE = window.THREE_BASE || 'https://cdn.jsdelivr.net/npm/three@0.147.0/';
 
 function U(o){
@@ -585,9 +590,9 @@ function U(o){
 function seed(){
   const now = Date.now();
   const units = [
-    U({stock:'PS2611',year:2026,make:'Can-Am',model:'Outlander XT 700',category:'atvs',condition:'New',price:13899,salePrice:12999,colour:'Grey',featured:true,age:6,vin:'3JBLWAX42TJ0418',
-      description:'Ready for the trail or the fence line. Comes with a factory winch, hand guards and a heavy-duty front bumper. Fully prepped and road-tested by our shop before it leaves the lot.',
-      specs:[['Engine','650cc single-cylinder, liquid-cooled'],['Drive','Selectable 2WD / 4WD with front diff lock'],['Transmission','CVT, P/R/N/H/L'],['Power steering','Yes, dynamic'],['Towing capacity','1,650 lb'],['Rack capacity','Front 100 lb / Rear 200 lb'],['Fuel capacity','20.5 L']]}),
+    U({stock:'PS2611',year:2026,make:'Can-Am',model:'Renegade X mr 1000R',category:'atvs',condition:'New',price:21999,salePrice:20999,colour:'Grey',featured:true,age:6,vin:'3JBLWAX42TJ0418',photos:[PHOTOS.atvs],
+      description:'Mud-ready from the factory: raised air intakes, aggressive mud tires, a winch and a heavy-duty front bumper. Fully prepped and road-tested by our shop before it leaves the lot.',
+      specs:[['Engine','976cc Rotax V-twin'],['Drive','Selectable 2WD / 4WD with front diff lock'],['Transmission','CVT, P/R/N/H/L'],['Power steering','Yes, dynamic'],['Tires','Mud tires on beadlock-style wheels'],['Winch','Factory installed'],['Colour','Hyper Silver & Neo Yellow']]}),
     U({stock:'PS2604',year:2026,make:'Polaris',model:'Sportsman 570 EPS',category:'atvs',condition:'New',price:11499,colour:'Sage',age:12,
       description:'The best-selling work and play quad, with electronic power steering and on-demand all-wheel drive.',
       specs:[['Engine','567cc ProStar single'],['Drive','On-demand true AWD'],['Power steering','Yes'],['Towing capacity','1,350 lb'],['Ground clearance','11.5 in']]}),
@@ -601,15 +606,15 @@ function seed(){
       description:'V-twin torque for heavy loads and deep mud.',
       specs:[['Engine','749cc V-twin'],['Drive','Selectable 2WD / 4WD, variable front diff lock'],['Towing capacity','1,250 lb']]}),
 
-    U({stock:'PS2620',year:2026,make:'Can-Am',model:'Defender HD9 XT',category:'sxs',condition:'New',price:26999,colour:'Green',featured:true,age:5,
+    U({stock:'PS2620',year:2026,make:'Can-Am',model:'Defender HD9 XT',category:'sxs',condition:'New',price:26999,colour:'Green',status:'pending',age:5,
       description:'Three-seat work machine with a full roof, half doors and a 1,000 lb dumping box. Built for chores that do not stop for weather.',
       specs:[['Engine','976cc Rotax V-twin'],['Seating','3'],['Drive','Selectable 2WD / 4WD with Visco-Lok'],['Box capacity','1,000 lb'],['Towing capacity','2,500 lb'],['Fuel capacity','40 L']]}),
     U({stock:'PS2597',year:2026,make:'Polaris',model:'RZR XP 1000 Sport',category:'sxs',condition:'New',price:27499,salePrice:25499,colour:'Orange',featured:true,age:15,
       description:'Trail-width sport side-by-side. Fall clearance pricing, while it lasts.',
       specs:[['Engine','999cc ProStar twin'],['Seating','2'],['Suspension travel','Front 16 in / Rear 18 in'],['Width','64 in']]}),
-    U({stock:'PS2602',year:2026,make:'Polaris',model:'Ranger XP 1000 Premium',category:'sxs',condition:'New',price:28999,colour:'Grey',status:'pending',age:14,
-      description:'Deposit taken. Call to be notified when the next one lands.',
-      specs:[['Engine','999cc ProStar twin'],['Seating','3'],['Box capacity','1,000 lb'],['Towing capacity','2,500 lb']]}),
+    U({stock:'PS2602',year:2026,make:'Polaris',model:'Ranger Crew XP 1000 NorthStar Edition',category:'sxs',condition:'New',price:41999,colour:'Red',featured:true,age:4,photos:[PHOTOS.sxs],
+      description:'Six seats and a fully enclosed cab with heat and A/C, so the work keeps going through an Ontario winter. Winch and front bumper installed.',
+      specs:[['Engine','999cc ProStar twin'],['Seating','6'],['Cab','Full enclosure with heat and A/C'],['Box capacity','1,000 lb'],['Towing capacity','2,500 lb'],['Winch','Front mounted']]}),
     U({stock:'U1179',year:2024,make:'Honda',model:'Pioneer 1000-5 Deluxe',category:'sxs',condition:'Used',price:21995,colour:'Red',km:3200,hours:288,age:9,
       description:'Five-seat flexibility with fold-away rear seats. Hard roof, windshield and winch included.',
       specs:[['Engine','999cc parallel twin'],['Seating','5 (convertible)'],['Odometer','3,200 km'],['Hours','288']]}),
@@ -626,9 +631,9 @@ function seed(){
     U({stock:'AG2629',year:2026,make:'Mahindra',model:'1626 HST w/ Loader',category:'tractors',condition:'New',price:29995,salePrice:27995,colour:'Red',age:11,
       description:'Heavy frame, big lift numbers and a 7-year powertrain warranty.',
       specs:[['Engine','26 hp diesel'],['Transmission','Hydrostatic'],['Loader lift','1,510 lb'],['Warranty','7-year powertrain']]}),
-    U({stock:'AG2618',year:2025,make:'Kioti',model:'CK2610 HST',category:'tractors',condition:'New',price:26499,colour:'Orange',age:28,
-      description:'Compact utility tractor, loader-ready.',
-      specs:[['Engine','24.4 hp diesel'],['Transmission','Hydrostatic, 3-range'],['3-pt lift capacity','1,323 lb']]}),
+    U({stock:'AG2618',year:2026,make:'Kioti',model:'DK Series HST Cab w/ Loader',category:'tractors',condition:'New',price:58900,salePrice:56500,colour:'Orange',featured:true,age:3,photos:[PHOTOS.tractors],
+      description:'A year-round cab tractor with heat and A/C, a front-end loader and a brush guard. Snow, gravel, hay and everything in between.',
+      specs:[['Transmission','Hydrostatic, 3-range'],['Drive','4WD'],['Cab','Heat and A/C'],['Loader','Front-end loader with bucket'],['Includes','Brush guard']]}),
     U({stock:'U1183',year:2019,make:'John Deere',model:'3025E',category:'tractors',condition:'Used',price:27995,colour:'Green',hours:640,age:8,
       description:'640 hours, loader and 6 ft box blade included. Serviced in our shop.',
       specs:[['Engine','25 hp diesel'],['Hours','640'],['Includes','Loader + 6 ft box blade']]}),
@@ -639,9 +644,9 @@ function seed(){
     U({stock:'TR2610',year:2026,make:'Big Tex',model:"35SA 12' Single Axle Utility",category:'trailers',condition:'New',price:3295,colour:'Black',age:10,
       description:'Treated wood deck, 4 ft fold-down gate and LED lights.',
       specs:[['GVWR','3,500 lb'],['Deck','77 in x 12 ft'],['Axles','Single 3,500 lb'],['Ramp','4 ft mesh gate']]}),
-    U({stock:'TR2614',year:2026,make:'Load Trail',model:"83x20' Tandem Car Hauler 7K",category:'trailers',condition:'New',price:8995,colour:'Black',featured:true,age:4,
-      description:'Dovetail with slide-in ramps. Hauls a full-size side-by-side or a compact tractor with loader.',
-      specs:[['GVWR','7,000 lb'],['Deck','83 in x 20 ft'],['Axles','Tandem 3,500 lb, electric brakes'],['Ramps','Slide-in, 5 ft']]}),
+    U({stock:'TR2614',year:2026,make:'Aluminum',model:"8.5x28' Enclosed Race Trailer",category:'trailers',condition:'New',price:32995,colour:'White',featured:true,age:4,photos:[PHOTOS.trailers],
+      description:'Room for a side-by-side plus gear, out of the weather. Side escape door, LED clearance lights, rear ramp door and polished front corners.',
+      specs:[['Size','8.5 ft x 28 ft'],['Axles','Tandem, electric brakes'],['Rear door','Ramp door with extension flap'],['Side door','Double escape door'],['Lighting','LED clearance and interior'],['Coupler','Adjustable']]}),
     U({stock:'TR2603',year:2025,make:'Triton',model:'ATV 2-Place Aluminum',category:'trailers',condition:'New',price:3899,colour:'Grey',age:35,
       description:'Side and rear load ramps for two ATVs.',
       specs:[['GVWR','2,990 lb'],['Construction','All aluminum'],['Load','Side + rear ramps']]}),
@@ -808,7 +813,10 @@ function art(kind, colour){
   return `<svg viewBox="0 0 400 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(colour)} ${esc(kind)} illustration">${g}</svg>`;
 }
 const unitArt = u => art(catOf(u.category).art, u.colour);
-const cover = u => u.photos && u.photos.length ? `<img src="${u.photos[0]}" alt="${esc(title(u))}" loading="lazy">` : unitArt(u);
+const isCut = p => /^img\//.test(p);
+const photoTag = (p, alt, lazy) => `<img ${isCut(p) ? 'class="cut" ' : ''}src="${p}" alt="${esc(alt)}"${lazy ? ' loading="lazy"' : ''}>`;
+const cover = u => u.photos && u.photos.length ? photoTag(u.photos[0], title(u), true) : unitArt(u);
+const catImg = (id, colour) => PHOTOS[id] ? photoTag(PHOTOS[id], catOf(id).name, true) : art(catOf(id).art, colour);
 
 const I = {
   phone:'<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2"/></svg>',
@@ -919,7 +927,7 @@ const PROMOS = [
 let typeSel = 'offroad';
 function typePanel(){
   const t = TYPES.find(x => x.id === typeSel), stock = inStock();
-  const item = (c, n, href) => `<a class="type-item" href="${href}">${art(c.art, ART_COLOUR[c.id])}<span class="go-pill">${c.name} <span class="num" style="opacity:.55">${n}</span> ${I.chev}</span></a>`;
+  const item = (c, n, href) => `<a class="type-item" href="${href}">${catImg(c.id, ART_COLOUR[c.id])}<span class="go-pill">${c.name} <span class="num" style="opacity:.55">${n}</span> ${I.chev}</span></a>`;
   let items, total, all;
   if(t.cats === 'used'){
     const used = stock.filter(u => u.condition === 'Used');
@@ -990,7 +998,7 @@ function homePage(intro){
   </div></section>
 
   <section class="block" style="background:var(--bg-2)"><div class="wrap about">
-    <div class="about-media">${art('tractor','Orange')}${art('sxs','Green')}</div>
+    <div class="about-media"><img class="am-a" src="${PHOTOS.tractors}" alt="Compact cab tractor with loader" loading="lazy"><img class="am-b" src="${PHOTOS.sxs}" alt="Crew cab side-by-side" loading="lazy"></div>
     <div>
       <span class="label">About the dealership</span>
       <h2 class="display">Kingsville's dealer for powersports &amp; compact tractors</h2>
@@ -1137,11 +1145,11 @@ function unitPage(id){
     <div class="crumbs" style="padding-top:22px"><a href="#home">Home</a><span>/</span><a href="#cat-${cat.id}">${cat.name}</a><span>/</span><span>${esc(u.stock)}</span></div>
     <div class="unit">
       <div class="gallery">
-        <div class="main" id="gal-main">${photos.length ? `<img src="${photos[galIdx]}" alt="${esc(title(u))}, photo ${galIdx+1}">` : unitArt(u)}
+        <div class="main" id="gal-main">${photos.length ? photoTag(photos[galIdx], title(u) + ', photo ' + (galIdx+1)) : unitArt(u)}
           <div class="badges"><span class="badge ${u.condition === 'New' ? 'new' : ''}">${u.condition === 'New' ? 'New' : 'Pre-Owned'}</span>${sale && !sold ? '<span class="badge sale">Sale</span>' : ''}${u.status === 'pending' ? '<span class="badge pending">Pending</span>' : ''}</div>
           ${sold ? '<div class="ribbon">SOLD</div>' : ''}</div>
-        ${photos.length > 1 ? `<div class="thumbs">${photos.map((p,i) => `<button type="button" data-act="gal" data-i="${i}" aria-current="${i === galIdx}" aria-label="Photo ${i+1}"><img src="${p}" alt=""></button>`).join('')}</div>` : ''}
-        ${photos.length ? '' : '<p class="photo-note">Lot photos coming soon. Ask for a walkaround video.</p>'}
+        ${photos.length > 1 ? `<div class="thumbs">${photos.map((p,i) => `<button type="button" data-act="gal" data-i="${i}" aria-current="${i === galIdx}" aria-label="Photo ${i+1}">${photoTag(p, '')}</button>`).join('')}</div>` : ''}
+        ${photos.length && !photos.every(isCut) ? '' : '<p class="photo-note">' + (photos.length ? 'Manufacturer photo. Ask us for lot photos or a walkaround video.' : 'Lot photos coming soon. Ask for a walkaround video.') + '</p>'}
       </div>
       <div class="buybox">
         <h1 class="display"><small>${u.year} · ${esc(cat.one)}</small>${esc(u.make)} ${esc(u.model)}</h1>
@@ -1734,7 +1742,7 @@ document.addEventListener('click', e => {
     case 'cond': F.cond = t.dataset.v; $$('[data-act="cond"]').forEach(b => b.setAttribute('aria-pressed', b === t)); renderResults(); break;
     case 'reset-f': resetF(); render(); break;
     case 'filters': $('#filters').classList.toggle('show'); break;
-    case 'gal': { galIdx = +t.dataset.i; const un = DB.unit(location.hash.slice(6)); $('#gal-main img').src = un.photos[galIdx]; $$('.thumbs button').forEach((b,i) => b.setAttribute('aria-current', i === galIdx)); break; }
+    case 'gal': { galIdx = +t.dataset.i; const un = DB.unit(location.hash.slice(6)); const gi = $('#gal-main img'); gi.src = un.photos[galIdx]; gi.classList.toggle('cut', isCut(un.photos[galIdx])); $$('.thumbs button').forEach((b,i) => b.setAttribute('aria-current', i === galIdx)); break; }
     case 'leadtab': { e.preventDefault(); const r = $(`#lead-form input[name=type][value=${t.dataset.v}]`); if(r){ r.checked = true; r.dispatchEvent(new Event('change', {bubbles:true})); } $('#lead-form').scrollIntoView({behavior:'smooth', block:'start'}); setTimeout(() => $('#lf-name')?.focus({preventScroll:true}), 400); break; }
     case 'logout': memAuth = false; ss('bf_auth', '0'); go('home'); break;
     case 'feature': u.featured = !u.featured; DB.saveUnit(u); renderAdminRows(); toast(u.featured ? 'Featured on the homepage.' : 'Removed from the homepage.'); break;
