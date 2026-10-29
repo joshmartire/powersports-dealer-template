@@ -153,7 +153,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .hero-art .tag .label{color:var(--accent)}
 .hero .ride.svg-drive{animation:driveIn 1s cubic-bezier(.12,.85,.25,1) both}
 .hero .ride.waiting svg{visibility:hidden}
-.hero .ride canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity .45s ease}
+.hero .ride canvas{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;transition:opacity .45s ease;pointer-events:none}
 .hero .ride.has3d canvas{opacity:1}
 .hero .ride.has3d svg{visibility:hidden}
 .hero.intro h1 .lean{animation:slam .45s cubic-bezier(.2,.9,.3,1.25) .35s both}
@@ -1607,6 +1607,12 @@ function startDust(intro){
     });
   };
   dustBurst = burst;
+  // emit dust at a viewport point, drifting along (dx, dy) in px/frame
+  dustAt = (clientX, clientY, n, dx, dy, size = 1) => {
+    const cr = cv.getBoundingClientRect(), x = clientX - cr.left, y = clientY - cr.top;
+    for(let i = 0; i < n; i++) ps.push({b:1, x:x + (Math.random()-.5)*14*size, y:y - Math.random()*6, vx:dx*(0.6 + Math.random()*.8) + (Math.random()-.5)*1.2,
+      vy:dy*(0.6 + Math.random()*.8) - Math.random()*1.4*size, r:(Math.random()*3 + 1.5)*size, a:Math.random()*.25 + .2});
+  };
   const tick = () => {
     ctx.clearRect(0,0,w,h);
     ps = ps.filter(p => !p.b || p.a > .02);
@@ -1617,11 +1623,11 @@ function startDust(intro){
     raf = requestAnimationFrame(tick);
   };
   tick(); window.addEventListener('resize', size);
-  dustStop = () => { cancelAnimationFrame(raf); window.removeEventListener('resize', size); dustBurst = null; };
+  dustStop = () => { cancelAnimationFrame(raf); window.removeEventListener('resize', size); dustBurst = null; dustAt = null; };
 }
 
 /* ---------- 3D hero ATV ---------- */
-let heroStop = null, dustBurst = null, threeReady = null, modelReady = null;
+let heroStop = null, dustBurst = null, dustAt = null, threeReady = null, modelReady = null;
 function loadScript(src){
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
 }
@@ -1672,55 +1678,119 @@ function startHero3D(intro){
     const key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(-3, 4, 4); scene.add(key);
     const rim = new THREE.DirectionalLight(0xff7a2e, 3.2); rim.position.set(4, 2, -3); scene.add(rim);
 
-    // model sits with wheels on y=0, pivoting from the ground
-    const model = gltf.scene.clone(true);
-    const box = new THREE.Box3().setFromObject(model), c = box.getCenter(new THREE.Vector3());
-    model.position.set(-c.x, -box.min.y, -c.z);
-    const pitch = new THREE.Group(); pitch.add(model);
-    const body = new THREE.Group(); body.add(pitch); scene.add(body);
-    // soft contact shadow
+    // Rig: body mesh + four wheels, each wheel on its hub inside a steer node (see atv-model.json 'rig').
+    const model = gltf.scene;
+    const part = n => model.getObjectByName(n);
+    const bodyMesh = part('body');
+    const WHEELS = [['fl', .272], ['fr', .272], ['rl', .287], ['rr', .287]].map(([k, r]) => ({k, r, steer: part('steer_' + k), wheel: part('wheel_' + k), phase: Math.random() * 6.28}));
+    if(!bodyMesh || WHEELS.some(w => !w.steer || !w.wheel)) throw new Error('model rig missing');
+    WHEELS.forEach(w => { w.base = w.steer.position.clone(); if(w.k[0] === 'f') w.base.y -= .045; });   // front tyres down onto the ground
+    const box = new THREE.Box3().setFromObject(model);
+    model.position.y = -box.min.y;                                      // tyres on y = 0
+    const car = new THREE.Group(); car.add(model); scene.add(car);     // car = ground position + heading
+    // soft contact shadow rides with the car
     const sc = document.createElement('canvas'); sc.width = sc.height = 128;
     const sx = sc.getContext('2d'), gr = sx.createRadialGradient(64,64,4,64,64,62);
     gr.addColorStop(0, 'rgba(0,0,0,.75)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); sx.fillStyle = gr; sx.fillRect(0,0,128,128);
-    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 2.9), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(sc), transparent:true, depthWrite:false}));
-    shadow.rotation.x = -Math.PI/2; shadow.position.y = .003; body.add(shadow);
+    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 2.6), new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(sc), transparent:true, depthWrite:false}));
+    shadow.rotation.x = -Math.PI/2; shadow.position.y = .003; car.add(shadow);
 
     const cam = new THREE.PerspectiveCamera(26, 5/3, .1, 100);
-    const size = () => { const w = ride.clientWidth, h = ride.clientHeight || w*.6; renderer.setSize(w, h, false); cam.aspect = w/h; cam.updateProjectionMatrix(); };
+    const size = () => {
+      const w = ride.clientWidth, h = ride.clientHeight || w*.6;
+      const extra = Math.max(0, Math.round(document.documentElement.clientWidth - ride.getBoundingClientRect().right));
+      canvas.style.width = (w + extra) + 'px';                         // spill to the screen edge on the right
+      renderer.setSize(w + extra, h, false);
+      cam.aspect = (w + 2 * extra) / h;                               // virtual frame centred on the original view
+      cam.setViewOffset(w + 2 * extra, h, extra, 0, w + extra, h);    // render its right-hand part: same framing, wider stage
+      cam.updateProjectionMatrix();
+    };
     size();
     let px = 0, py = 0, cx = 0, cy = 0;
     const onMove = e => { px = (e.clientX / innerWidth - .5) * 2; py = (e.clientY / innerHeight - .5) * 2; };
     window.addEventListener('resize', size); window.addEventListener('pointermove', onMove);
     cleanup = () => { window.removeEventListener('resize', size); window.removeEventListener('pointermove', onMove); renderer.dispose(); env.dispose(); pm.dispose(); };
 
-    const YAW = -1.0, DUR = 1150;
-    let elapsed = 0, last = 0;
-    const ease = t => 1 - Math.pow(1 - t, 3), cl = t => Math.max(0, Math.min(1, t));
-    let burstDone = !intro;
-    const frame = now => {
-      // advance by at most ~33ms per frame so a slow first frame never skips the drive-in
-      if(last) elapsed += Math.min(now - last, 34); last = now;
-      const t = intro ? elapsed / DUR : 2;
-      let yaw = YAW, x = 0, pr = 0, bob = 0;
-      if(t < 1){
-        const d = cl(t / .6), b = cl((t - .5) / .5);
-        x = 6.5 * (1 - ease(d)) - (t > .5 ? .14 * Math.sin(b * Math.PI) * Math.exp(-2 * b) : 0);
-        yaw = YAW - .5 * (1 - ease(cl((t - .3) / .7)));            // skids round to face the viewer
-        bob = d < 1 ? Math.sin(now * .09) * .012 : 0;              // trail chatter while moving
-        pr = t > .5 ? .085 * Math.exp(-4.5 * b) * Math.cos(b * 9) : -.025; // nose-dip on the brakes
-        if(!burstDone && t > .55){ burstDone = true; dustBurst && dustBurst(); }
+    /* ---- drive path: enters side-on from the right, brakes hard and turns in to face the viewer ---- */
+    const YAW = -1.0, YAW0 = -1.57, DIST = 6.4, DUR = 1750, N = 400, WB = 1.43;
+    const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const path = [];                                                    // samples of s, heading, x, z over normalised time
+    { let x = 0, z = 0, prevS = 0;
+      for(let i = 0; i <= N; i++){
+        const t = i / N, sN = 1 - Math.pow(1 - t, 2.3), s = sN * DIST;  // speed falls off steeply: hard braking at the end
+        const head = YAW0 + (YAW - YAW0) * smooth(.5, .97, t);
+        const ds = s - prevS; x += Math.sin(head) * ds; z += Math.cos(head) * ds; prevS = s;
+        path.push({t, s, head, x, z});
       }
-      const idle = reduce ? 0 : Math.sin(now / 2600) * .05;
+      const end = path[N]; path.forEach(p => { p.x -= end.x; p.z -= end.z; });
+    }
+    const sample = t => { const f = Math.max(0, Math.min(1, t)) * N, i = Math.min(N - 1, Math.floor(f)), u = f - i, a = path[i], b = path[i + 1];
+      return {s: a.s + (b.s - a.s) * u, head: a.head + (b.head - a.head) * u, x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u}; };
+
+    // second-order springs = suspension (underdamped: dive, rebound, settle)
+    const spring = (k, c) => ({v: 0, x: 0, k, c, step(target, dt){ this.v += (this.k * (target - this.x) - this.c * this.v) * dt; this.x += this.v * dt; return this.x; }});
+    const pitchS = spring(140, 9), rollS = spring(120, 9), heaveS = spring(160, 11), steerS = spring(90, 14);
+    const v3 = new THREE.Vector3(), v3b = new THREE.Vector3();
+    let elapsed = 0, last = 0, prevS = intro ? 0 : DIST, prevV = 0, prevHead = intro ? YAW0 : YAW, burstDone = !intro, trailT = 0;
+    const toScreen = (obj, out) => { obj.getWorldPosition(out); out.project(cam); const r = renderer.domElement.getBoundingClientRect();
+      return [r.left + (out.x * .5 + .5) * r.width, r.top + (-out.y * .5 + .5) * r.height]; };
+
+    const frame = now => {
+      const dtMs = last ? Math.min(now - last, 34) : 16; last = now; elapsed += dtMs;  // capped step: a slow first frame never skips the drive
+      const dt = dtMs / 1000;
+      const t = intro ? elapsed / DUR : 2;
+      const p = sample(t);
+      const v = Math.max(0, (p.s - prevS) / dt), acc = (v - prevV) / dt, yawRate = (p.head - prevHead) / dt;
+      const moving = Math.min(1, v / 3);
+
+      // ground position + heading (+ a little drift into the slide at the end)
+      const drift = intro ? .16 * Math.sin(Math.PI * smooth(.62, 1, t)) * (1 - smooth(.9, 1.1, t)) : 0;
+      const idleYaw = reduce ? 0 : Math.sin(now / 2600) * .04;
       cx += (px - cx) * .05; cy += (py - cy) * .05;
-      body.position.x = x; body.rotation.y = yaw + idle + cx * .35;
-      pitch.rotation.x = pr; pitch.position.y = bob;
+      car.position.set(p.x, 0, p.z);
+      car.rotation.y = p.head - drift + (t >= 1 ? idleYaw + cx * .3 : 0);
+
+      // wheels roll by distance travelled; fronts steer into the turn
+      const ds = p.s - prevS;
+      const steerTarget = v > .15 ? Math.max(-.5, Math.min(.5, Math.atan(WB * yawRate / v))) : 0;
+      const steerA = steerS.step(steerTarget, dt);
+      for(const w of WHEELS){
+        w.wheel.rotation.x += ds / w.r;
+        if(w.k[0] === 'f') w.steer.rotation.y = steerA;
+        // each wheel follows the ground on its own (small terrain bumps while moving)
+        w.steer.position.copy(w.base); w.steer.position.y += moving * .014 * Math.sin(p.s * 6.5 + w.phase) * Math.sin(p.s * 2.3 + w.phase * .7);
+      }
+
+      // body on the suspension: dive under braking, lean in the turn, heave over bumps, idle shudder at rest
+      const bump = moving * (.012 * Math.sin(p.s * 6.5) + .008 * Math.sin(p.s * 11.3 + 1.1));
+      const pitch = pitchS.step(Math.max(-.05, Math.min(.11, -acc * .0062)), dt);
+      const roll = rollS.step(Math.max(-.08, Math.min(.08, -v * yawRate * .02)), dt);
+      const heave = heaveS.step(bump - Math.max(0, pitch) * .12, dt);
+      const shudder = t >= .98 && !reduce ? .0016 * Math.sin(now * .19) + .0009 * Math.sin(now * .43) : 0;
+      bodyMesh.rotation.set(pitch, 0, roll + shudder * .6);
+      bodyMesh.position.y = heave + shudder;
+
+      // dirt: trail off the rear tyres while moving, burst when the brakes bite
+      if(dustAt && intro && t < 1){
+        trailT += dtMs;
+        if(v > 1.2 && trailT > 30){ trailT = 0;
+          for(const w of WHEELS.filter(w => w.k[0] === 'r')){ const [sx2, sy2] = toScreen(w.wheel, v3); dustAt(sx2, sy2 + 18, 2, 1.6 * moving, -.2, .8 + moving * .5); }
+        }
+        if(!burstDone && t > .78){ burstDone = true;
+          for(const w of WHEELS){ const [sx2, sy2] = toScreen(w.wheel, v3b); dustAt(sx2, sy2 + 20, w.k[0] === 'r' ? 26 : 14, 2.4, -.6, 1.2); }
+          dustBurst && dustBurst();
+        }
+      }
+      prevS = p.s; prevV = v; prevHead = p.head;
+
       cam.position.set(0, .95 - cy * .3, 4.4); cam.lookAt(0, .48, 0);
       renderer.render(scene, cam);
       raf = requestAnimationFrame(frame);
     };
     if(intro) canvas.style.transition = 'none';
-    // compile shaders and draw the start position before revealing, so the drive-in starts clean
-    body.position.x = intro ? 6.5 : 0; body.rotation.y = YAW; cam.position.set(0, .95, 4.4); cam.lookAt(0, .48, 0);
+    // compile shaders and draw the start pose before revealing, so the drive-in starts clean
+    { const p0 = sample(intro ? 0 : 1); car.position.set(p0.x, 0, p0.z); car.rotation.y = p0.head; WHEELS.forEach(w => w.steer.position.copy(w.base)); }
+    cam.position.set(0, .95, 4.4); cam.lookAt(0, .48, 0);
     renderer.compile(scene, cam); renderer.render(scene, cam);
     ride.classList.remove('waiting'); ride.classList.add('has3d');
     raf = requestAnimationFrame(frame);
